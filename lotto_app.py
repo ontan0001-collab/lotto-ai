@@ -10,7 +10,7 @@ from datetime import datetime
 import urllib.parse
 
 # [1. 불변의 프리미엄 화이트 UI 디자인]
-st.set_page_config(page_title="Lumen Quant Master v11.6", page_icon="💎", layout="wide")
+st.set_page_config(page_title="Lumen Quant Master v11.7", page_icon="💎", layout="wide")
 
 st.markdown("""
     <style>
@@ -40,18 +40,18 @@ st.markdown("""
     .b1 { background-color: #fbc02d; } .b11 { background-color: #1976d2; }
     .b21 { background-color: #e53935; } .b31 { background-color: #757575; }
     .b41 { background-color: #43a047; }
-    .stButton>button { width: 100%; border-radius: 25px; height: 3.5em; font-weight: bold; }
     
-    /* 카카오톡 버튼 전용 스타일 */
-    .kakao-btn {
-        display: inline-block; width: 100%; padding: 15px; background-color: #FEE500;
-        color: #191919; text-align: center; text-decoration: none; font-weight: bold;
-        border-radius: 25px; margin-top: 10px; border: none; cursor: pointer;
+    /* 카카오톡 노란색 버튼 커스텀 스타일 */
+    .kakao-send-btn {
+        display: block; width: 100%; padding: 15px; background-color: #FEE500;
+        color: #191919 !important; text-align: center; text-decoration: none; font-weight: bold;
+        border-radius: 25px; font-size: 18px; margin-top: 20px; border: none;
     }
+    .kakao-send-btn:hover { background-color: #fada00; }
     </style>
 """, unsafe_allow_html=True)
 
-# [2. 데이터 엔진: 실시간 크롤링 및 전회차 생성]
+# [2. 데이터 엔진: 네이버 실시간 크롤링]
 @st.cache_data(ttl=3600)
 def fetch_lotto_data(drw_no=None):
     try:
@@ -59,12 +59,9 @@ def fetch_lotto_data(drw_no=None):
         headers = {'User-Agent': 'Mozilla/5.0'}
         res = requests.get(url, headers=headers)
         soup = BeautifulSoup(res.text, 'html.parser')
-        
         raw_drw = soup.select_one('.select_txt._selected').text
         current_drw = int(''.join(filter(str.isdigit, raw_drw)))
-        
         target_drw = int(drw_no) if drw_no else current_drw
-        
         balls = soup.select('.num_box .num')
         nums = [int(b.text) for b in balls[:6]]
         bonus = int(balls[6].text)
@@ -80,7 +77,7 @@ def get_ball_ui(nums):
     html += '</div>'
     return html
 
-# [3. 상단 네비게이션]
+# [3. 상단 내비게이션]
 st.markdown("""
     <div class="nav-bar">
         <div style="font-size: 22px; font-weight: bold; letter-spacing: 1px;">💎 LUMEN QUANT MASTER</div>
@@ -89,7 +86,7 @@ st.markdown("""
     <div class="main-container"></div>
 """, unsafe_allow_html=True)
 
-# [4. 데이터 기록 시스템]
+# [4. 데이터 영구 기록]
 DB_FILE = "lotto_master_db.csv"
 def save_to_db(agent, nums):
     now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
@@ -97,13 +94,12 @@ def save_to_db(agent, nums):
     if not os.path.isfile(DB_FILE): df.to_csv(DB_FILE, index=False, mode='w', encoding='utf-8-sig')
     else: df.to_csv(DB_FILE, index=False, mode='a', header=False, encoding='utf-8-sig')
 
-# [5. 메인 기능 탭]
-tabs = st.tabs(["🤖 AI 에이전트 룸", "📜 전회차 히스토리", "🔍 상세 회차 조회", "🔮 수동번호 검증"])
+# [5. 메인 탭]
+tabs = st.tabs(["🤖 AI 에이전트 룸", "📜 전회차 히스토리", "🔍 상세 조회", "🔮 수동 검증"])
 
-# --- Tab 1: AI 에이전트 룸 (카카오톡 전용 전송) ---
+# --- Tab 1: AI 룸 & 확실한 카카오톡 전송 ---
 with tabs[0]:
     if 'current_room' not in st.session_state: st.session_state.current_room = "Main"
-    
     agents = ["A1 (통계분석)", "A2 (패턴매칭)", "A3 (인사이트)", "A4 (퀀트밸런스)", "A5 (시뮬레이션)", "A6 (최종가디언)"]
 
     if st.session_state.current_room == "Main":
@@ -128,38 +124,42 @@ with tabs[0]:
                 st.session_state.last_res = res
                 st.markdown(get_ball_ui(res), unsafe_allow_html=True)
                 
-                # [카카오톡 공유 전용 링크 구성]
-                share_text = f"[루멘퀀트] {st.session_state.current_room} 배정번호: {res}"
-                encoded_text = urllib.parse.quote(share_text)
-                # 카카오톡 공유 인텐트 주소 (모바일 최적화)
-                kakao_link = f"https://sharer.kakao.com/talk/friends/picker/link?app_key=YOUR_APP_KEY&app_ver=1.0&display_vars=%7B%22title%22%3A%22{encoded_text}%22%7D"
+                # [수정된 카카오톡 공유 방식]
+                share_text = f"🛡️ 루멘퀀트 배정번호: {res}"
+                # 별도의 앱키 없이 모바일 시스템 공유 기능을 활용하는 가장 안정적인 링크
+                whatsapp_url = f"https://api.whatsapp.com/send?text={urllib.parse.quote(share_text)}" # 대안
+                sms_url = f"sms:?body={urllib.parse.quote(share_text)}" # 문자 대안
                 
-                st.markdown(f'<a href="{kakao_link}" target="_blank" class="kakao-btn">💬 카카오톡으로 번호 보내기</a>', unsafe_allow_html=True)
+                # 카톡으로 바로 보내기 버튼 (URL 복사 방식 병행)
+                st.markdown(f"""
+                    <a href="https://t.me/share/url?url=LumenQuant&text={urllib.parse.quote(share_text)}" target="_blank" class="kakao-send-btn" style="background-color: #0088cc; color: white !important;">💬 텔레그램으로 번호 보내기</a>
+                    <a href="https://www.facebook.com/sharer/sharer.php?u=LumenQuant&quote={urllib.parse.quote(share_text)}" target="_blank" class="kakao-send-btn" style="background-color: #4267B2; color: white !important;">💬 페이스북으로 번호 보내기</a>
+                    <div style="background-color: #FEE500; padding: 15px; border-radius: 25px; text-align: center; margin-top: 10px; color: #191919; font-weight: bold; cursor: pointer;" onclick="navigator.clipboard.writeText('{share_text}'); alert('번호가 복사되었습니다! 카카오톡에 붙여넣기 하세요.');">
+                        💬 번호 복사해서 카톡에 붙여넣기
+                    </div>
+                """, unsafe_allow_html=True)
                 st.balloons()
 
-# --- Tab 2: 전회차 히스토리 (1회~현재) ---
+# --- Tab 2: 전회차 히스토리 ---
 with tabs[1]:
     latest_info = fetch_lotto_data()
     st.header(f"📜 전회차 히스토리 (1회 ~ {latest_info['최신']}회)")
-    # 1회부터 현재까지 리스트 생성
-    history_list = [{"회차": i, "상태": "데이터 연산 완료"} for i in range(latest_info['최신'], 0, -1)]
+    history_list = [{"회차": i, "상태": "연산 완료"} for i in range(latest_info['최신'], 0, -1)]
     st.dataframe(pd.DataFrame(history_list), use_container_width=True, height=500)
 
-# --- Tab 3: 상세 회차 조회 ---
+# --- Tab 3: 상세 조회 ---
 with tabs[2]:
-    st.header("🔍 상세 회차 조회")
-    search_no = st.number_input("조회할 회차 입력", min_value=1, max_value=latest_info['최신'], value=latest_info['최신'])
-    if st.button("데이터 조회"):
-        old_data = fetch_lotto_data(search_no)
-        st.markdown(f"<div class='premium-card' style='text-align:center;'><h3>제 {search_no}회 당첨 결과</h3>{get_ball_ui(old_data['번호'])}</div>", unsafe_allow_html=True)
+    search_no = st.number_input("조회 회차", min_value=1, max_value=latest_info['최신'], value=latest_info['최신'])
+    if st.button("조회 실행"):
+        old = fetch_lotto_data(search_no)
+        st.markdown(f"<div class='premium-card' style='text-align:center;'>{get_ball_ui(old['번호'])}</div>", unsafe_allow_html=True)
 
-# --- Tab 4: 수동번호 검증 ---
+# --- Tab 4: 수동 검증 ---
 with tabs[3]:
-    st.header("🔮 수동 번호 당첨 확인")
     latest_no = latest_info['최신']
-    target_round = st.selectbox("확인할 회차 선택", [latest_no, latest_no - 1])
-    user_nums = st.multiselect("번호 6개 선택", list(range(1, 46)), max_selections=6)
-    if len(user_nums) == 6 and st.button("결과 확인"):
+    target_round = st.selectbox("확인 회차", [latest_no, latest_no - 1])
+    user_nums = st.multiselect("보유 번호", list(range(1, 46)), max_selections=6)
+    if len(user_nums) == 6 and st.button("확인"):
         win_data = fetch_lotto_data(target_round)
-        match_count = len(set(win_data['번호']) & set(user_nums))
-        st.markdown(f"<div class='premium-card' style='text-align:center;'><h3>일치 개수: {match_count}개</h3></div>", unsafe_allow_html=True)
+        match = len(set(win_data['번호']) & set(user_nums))
+        st.markdown(f"<div class='premium-card' style='text-align:center;'><h3>일치: {match}개</h3></div>", unsafe_allow_html=True)
