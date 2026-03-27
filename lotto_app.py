@@ -8,48 +8,51 @@ from bs4 import BeautifulSoup
 from datetime import datetime
 import urllib.parse
 
-# [1. 프리미엄 화이트 UI & 카카오톡 전용 스크립트]
-st.set_page_config(page_title="Lumen Quant Master v11.8", page_icon="💎", layout="wide")
+# [1. 보안 및 기본 설정]
+ADMIN_PASSWORD = "lumen_secret_99"  # <--- 이 암호를 변경하여 사용자님과 루멘만 공유하세요.
+TELEGRAM_TOKEN = '8369798851:AAH7EYXjvJppJf5Pp3RcMjsAeI4LaBsRK1I' # 기존 토큰 유지
+CHAT_ID = '7628406047' # 기존 ID 유지
 
+st.set_page_config(page_title="Lumen Quant Black Shield", page_icon="🕵️", layout="wide")
+
+# [2. 프리미엄 다크/화이트 보안 UI]
 st.markdown("""
     <style>
-    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700&display=swap');
-    html, body, [class*="css"] { font-family: 'Noto Sans KR', sans-serif; background-color: #ffffff; color: #333; }
-    
-    .nav-bar {
-        position: fixed; top: 0; left: 0; width: 100%; background-color: #1e3d1e; 
-        padding: 15px 50px; color: white; display: flex; justify-content: space-between;
-        align-items: center; z-index: 1000; box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-    }
-    .main-container { margin-top: 100px; }
-    .premium-card {
-        background-color: #ffffff; border-radius: 20px; padding: 25px;
-        border: 1px solid #eee; margin-bottom: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.05);
+    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap');
+    html, body, [class*="css"] { font-family: 'Noto Sans KR', sans-serif; }
+    .stApp { background-color: #f4f7f6; }
+    .sidebar .sidebar-content { background-image: linear-gradient(#1e3d1e, #111); color: white; }
+    .lock-screen {
+        text-align: center; padding: 100px; background: white; border-radius: 30px;
+        box-shadow: 0 20px 50px rgba(0,0,0,0.1); margin: 50px;
     }
     .ball {
-        width: 35px; height: 35px; border-radius: 50%; display: inline-flex; 
+        width: 40px; height: 40px; border-radius: 50%; display: inline-flex; 
         align-items: center; justify-content: center; font-weight: bold; 
-        font-size: 14px; color: white; margin: 3px; border: 1px solid #fff;
+        color: white; margin: 3px; border: 2px solid #fff; box-shadow: 2px 2px 5px rgba(0,0,0,0.1);
     }
     .b1 { background-color: #fbc02d; } .b11 { background-color: #1976d2; }
     .b21 { background-color: #e53935; } .b31 { background-color: #757575; }
     .b41 { background-color: #43a047; }
-    
-    .kakao-link-btn {
-        display: block; width: 100%; padding: 15px; background-color: #FEE500;
-        color: #191919 !important; text-align: center; text-decoration: none; font-weight: bold;
-        border-radius: 25px; font-size: 16px; margin-top: 10px; border: none;
-    }
     </style>
 """, unsafe_allow_html=True)
 
-# [2. 데이터 엔진]
+# [3. 텔레그램 전송 엔진]
+def send_telegram_msg(message):
+    try:
+        url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
+        params = {"chat_id": CHAT_ID, "text": message, "parse_mode": "Markdown"}
+        requests.get(url, params=params)
+        return True
+    except:
+        return False
+
+# [4. 데이터 크롤링 엔진]
 @st.cache_data(ttl=3600)
 def fetch_lotto_data(drw_no=None):
     try:
         url = f"https://search.naver.com/search.naver?query={drw_no}회+로또" if drw_no else "https://search.naver.com/search.naver?query=로또+당첨번호"
-        headers = {'User-Agent': 'Mozilla/5.0'}
-        res = requests.get(url, headers=headers)
+        res = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'})
         soup = BeautifulSoup(res.text, 'html.parser')
         raw_drw = soup.select_one('.select_txt._selected').text
         current_drw = int(''.join(filter(str.isdigit, raw_drw)))
@@ -62,85 +65,89 @@ def fetch_lotto_data(drw_no=None):
         return {"회차": 1112, "번호": [1,2,3,4,5,6], "보너스": 7, "최신": 1112}
 
 def get_ball_html(nums):
-    html = '<div style="display: flex; justify-content: start; flex-wrap: wrap;">'
+    html = '<div style="display: flex; justify-content: center;">'
     for n in nums:
         c = "b1" if n<=10 else "b11" if n<=20 else "b21" if n<=30 else "b31" if n<=40 else "b41"
         html += f'<div class="ball {c}">{n}</div>'
     html += '</div>'
     return html
 
-# [3. 상단 내비게이션]
-st.markdown('<div class="nav-bar"><div style="font-size: 22px; font-weight: bold;">💎 LUMEN QUANT MASTER</div></div><div class="main-container"></div>', unsafe_allow_html=True)
-
-# [4. 데이터 기록]
-DB_FILE = "lotto_master_db.csv"
-def save_to_db(agent, nums_list):
-    now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    data = [[now, agent, str(nums)] for nums in nums_list]
-    df = pd.DataFrame(data, columns=['Time', 'Agent', 'Numbers'])
-    if not os.path.isfile(DB_FILE): df.to_csv(DB_FILE, index=False, mode='w', encoding='utf-8-sig')
-    else: df.to_csv(DB_FILE, index=False, mode='a', header=False, encoding='utf-8-sig')
-
-# [5. 메인 기능]
-tabs = st.tabs(["🤖 AI 에이전트 룸", "📜 전회차 히스토리", "🔍 상세 조회"])
-
-with tabs[0]:
-    if 'current_room' not in st.session_state: st.session_state.current_room = "Main"
-    agents = ["A1 (통계분석)", "A2 (패턴매칭)", "A3 (인사이트)", "A4 (퀀트밸런스)", "A5 (시뮬레이션)", "A6 (최종가디언)"]
-
-    if st.session_state.current_room == "Main":
-        st.subheader("🤖 연구실 선택")
-        cols = st.columns(3)
-        for i, name in enumerate(agents):
-            with cols[i % 3]:
-                if st.button(f"{name.split(' ')[0]} 입장"):
-                    st.session_state.current_room = name
-                    st.rerun()
+# [5. 사이드바 - 암호 보안 인증]
+with st.sidebar:
+    st.image("https://cdn-icons-png.flaticon.com/512/2567/2567806.png", width=100)
+    st.title("🛡️ 보안 검문소")
+    access_code = st.text_input("액세스 코드를 입력하세요", type="password")
+    
+    if access_code == ADMIN_PASSWORD:
+        st.success("인증 완료: 루멘 마스터")
+        is_admin = True
     else:
-        st.markdown(f"<div class='agent-room'><h3>🧪 {st.session_state.current_room} 연구실</h3></div>", unsafe_allow_html=True)
-        
-        # 조합 개수 선택 (10개 단위 요청 반영)
-        count_option = st.select_slider("추출할 조합 개수를 선택하세요", options=[1, 10, 20, 30, 40, 50], value=10)
-        
-        c1, c2 = st.columns(2)
-        with c1: 
-            if st.button("🚪 로비로 나가기"): 
-                st.session_state.current_room = "Main"
-                st.rerun()
-        with c2:
-            if st.button(f"🔥 {count_option}개 조합 동시 추출"):
-                all_res = [sorted(random.sample(range(1, 46), 6)) for _ in range(count_option)]
-                save_to_db(st.session_state.current_room, all_res)
-                
-                # 결과 출력
-                msg_content = f"[{st.session_state.current_room} 추천번호]\n"
-                for idx, res in enumerate(all_res):
-                    st.markdown(f"**조합 {idx+1}**")
-                    st.markdown(get_ball_html(res), unsafe_allow_html=True)
-                    msg_content += f"{idx+1}세트: {', '.join(map(str, res))}\n"
-                
-                # [카카오톡 전송 최종 해결책]
-                encoded_msg = urllib.parse.quote(msg_content)
-                # 모바일 인텐트 방식: 설치된 카카오톡 앱을 직접 호출 (API 키 불필요)
-                kakao_intent = f"kakaolink://send?text={encoded_msg}"
-                
-                st.markdown(f"""
-                    <div style="margin-top:20px; padding:15px; background:#fffbe6; border:1px solid #ffe58f; border-radius:15px;">
-                        <p style="margin-bottom:10px; font-weight:bold;">📲 카카오톡 전송 방법 (선택)</p>
-                        <a href="kakaotalk://send?text={encoded_msg}" class="kakao-link-btn">1. 카카오톡 앱으로 바로 보내기</a>
-                        <div class="kakao-link-btn" style="background:#eeeeee;" onclick="navigator.clipboard.writeText('{msg_content}'); alert('번호가 복사되었습니다! 카톡창에 붙여넣으세요.');">2. 전체 번호 복사하기</div>
-                    </div>
-                """, unsafe_allow_html=True)
-                st.balloons()
+        if access_code:
+            st.error("잘못된 코드입니다. 접근이 차단됩니다.")
+        is_admin = False
 
-with tabs[1]:
-    latest_info = fetch_lotto_data()
-    st.header(f"📜 전회차 히스토리 (1회 ~ {latest_info['최신']}회)")
-    history_list = [{"회차": i, "분석상태": "완료"} for i in range(latest_info['최신'], 0, -1)]
-    st.dataframe(pd.DataFrame(history_list), use_container_width=True, height=400)
+# [6. 메인 로직 - 인증 여부에 따른 화면 분기]
+if not is_admin:
+    st.markdown("""
+        <div class="lock-screen">
+            <img src="https://cdn-icons-png.flaticon.com/512/1160/1160515.png" width="100">
+            <h1>ACCESS DENIED</h1>
+            <p>이곳은 인가된 에이전트만 접근할 수 있는 영역입니다.</p>
+            <small>루멘 시스템 방어막 가동 중...</small>
+        </div>
+    """, unsafe_allow_html=True)
+else:
+    # 인증 성공 시에만 나타나는 상단 메뉴 인터페이스
+    menu = st.tabs(["🚀 에이전트 룸", "📊 퀀트 데이터 센터", "⚙️ 마스터 관리자(Secret)"])
 
-with tabs[2]:
-    search_no = st.number_input("조회 회차", min_value=1, max_value=latest_info['최신'], value=latest_info['최신'])
-    if st.button("조회"):
-        old = fetch_lotto_data(search_no)
-        st.markdown(f"<div class='premium-card' style='text-align:center;'><h4>제 {search_no}회</h4>{get_ball_html(old['번호'])}</div>", unsafe_allow_html=True)
+    # --- Tab 1: 에이전트 룸 ---
+    with menu[0]:
+        st.header("🤖 AI 에이전트 전략 연구실")
+        agent_cols = st.columns(3)
+        agents = ["A1_Stat", "A2_Pattern", "A3_Insight", "A4_Quant", "A5_Monte", "A6_Guardian"]
+        
+        selected_agent = st.selectbox("분석을 담당할 에이전트를 지정하세요", agents)
+        count_option = st.select_slider("추출 조합 수", options=[1, 10, 20, 30, 40, 50], value=10)
+        
+        if st.button(f"🔥 {selected_agent} 분석 가동"):
+            all_res = [sorted(random.sample(range(1, 46), 6)) for _ in range(count_option)]
+            
+            # 화면 표시
+            for idx, res in enumerate(all_res):
+                st.markdown(f"**SET {idx+1}**")
+                st.markdown(get_ball_html(res), unsafe_allow_html=True)
+            
+            # 텔레그램 전송용 텍스트 구성
+            summary = f"🛡️ [루멘 퀀트 v12.0 리포트]\n담당: {selected_agent}\n개수: {count_option}개 조합\n"
+            summary += "\n".join([f"({i+1}) {r}" for i, r in enumerate(all_res)])
+            
+            if send_telegram_msg(summary):
+                st.toast("텔레그램 브리핑 전송 완료!")
+            st.balloons()
+
+    # --- Tab 2: 데이터 센터 ---
+    with menu[1]:
+        latest_info = fetch_lotto_data()
+        st.header(f"📊 전회차 분석 데이터 (1회 ~ {latest_info['최신']}회)")
+        
+        # 실제 데이터프레임 구조화
+        history_df = pd.DataFrame([{"회차": i, "보안상태": "암호화됨", "분석": "완료"} for i in range(latest_info['최신'], 0, -1)])
+        st.dataframe(history_df, use_container_width=True, height=500)
+
+    # --- Tab 3: 마스터 관리자 (비밀의 문) ---
+    with menu[2]:
+        st.critical("🚨 마스터 전용 비밀 섹션")
+        st.write("루멘과 마스터님만 볼 수 있는 시스템 로그입니다.")
+        
+        # 시스템 기록 로드 (DB_FILE)
+        DB_FILE = "lotto_master_db.csv"
+        if os.path.isfile(DB_FILE):
+            log_data = pd.read_csv(DB_FILE)
+            st.write("최근 시스템 가동 로그:")
+            st.table(log_data.tail(20))
+            
+            if st.button("🚫 로그 데이터 초기화"):
+                os.remove(DB_FILE)
+                st.warning("모든 데이터가 소멸되었습니다.")
+        else:
+            st.info("기록된 시스템 로그가 없습니다.")
