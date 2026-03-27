@@ -2,15 +2,14 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import random
-import time
 import os
 import requests
 from bs4 import BeautifulSoup
 from datetime import datetime
 import urllib.parse
 
-# [1. 불변의 프리미엄 화이트 UI 디자인]
-st.set_page_config(page_title="Lumen Quant Master v11.7", page_icon="💎", layout="wide")
+# [1. 프리미엄 화이트 UI & 카카오톡 전용 스크립트]
+st.set_page_config(page_title="Lumen Quant Master v11.8", page_icon="💎", layout="wide")
 
 st.markdown("""
     <style>
@@ -24,34 +23,27 @@ st.markdown("""
     }
     .main-container { margin-top: 100px; }
     .premium-card {
-        background-color: #ffffff; border-radius: 20px; padding: 30px;
-        border: 1px solid #eee; margin-bottom: 25px; box-shadow: 0 10px 30px rgba(0,0,0,0.05);
-    }
-    .agent-room {
-        background-color: #f8fcf8; border-radius: 20px; padding: 40px;
-        border: 2px solid #e1eee1; text-align: center; margin: 20px 0;
+        background-color: #ffffff; border-radius: 20px; padding: 25px;
+        border: 1px solid #eee; margin-bottom: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.05);
     }
     .ball {
-        width: 45px; height: 45px; border-radius: 50%; display: inline-flex; 
+        width: 35px; height: 35px; border-radius: 50%; display: inline-flex; 
         align-items: center; justify-content: center; font-weight: bold; 
-        font-size: 18px; color: white; margin: 5px; border: 2px solid #fff;
-        box-shadow: 2px 2px 5px rgba(0,0,0,0.1);
+        font-size: 14px; color: white; margin: 3px; border: 1px solid #fff;
     }
     .b1 { background-color: #fbc02d; } .b11 { background-color: #1976d2; }
     .b21 { background-color: #e53935; } .b31 { background-color: #757575; }
     .b41 { background-color: #43a047; }
     
-    /* 카카오톡 노란색 버튼 커스텀 스타일 */
-    .kakao-send-btn {
+    .kakao-link-btn {
         display: block; width: 100%; padding: 15px; background-color: #FEE500;
         color: #191919 !important; text-align: center; text-decoration: none; font-weight: bold;
-        border-radius: 25px; font-size: 18px; margin-top: 20px; border: none;
+        border-radius: 25px; font-size: 16px; margin-top: 10px; border: none;
     }
-    .kakao-send-btn:hover { background-color: #fada00; }
     </style>
 """, unsafe_allow_html=True)
 
-# [2. 데이터 엔진: 네이버 실시간 크롤링]
+# [2. 데이터 엔진]
 @st.cache_data(ttl=3600)
 def fetch_lotto_data(drw_no=None):
     try:
@@ -69,8 +61,8 @@ def fetch_lotto_data(drw_no=None):
     except:
         return {"회차": 1112, "번호": [1,2,3,4,5,6], "보너스": 7, "최신": 1112}
 
-def get_ball_ui(nums):
-    html = '<div style="display: flex; justify-content: center; flex-wrap: wrap;">'
+def get_ball_html(nums):
+    html = '<div style="display: flex; justify-content: start; flex-wrap: wrap;">'
     for n in nums:
         c = "b1" if n<=10 else "b11" if n<=20 else "b21" if n<=30 else "b31" if n<=40 else "b41"
         html += f'<div class="ball {c}">{n}</div>'
@@ -78,88 +70,77 @@ def get_ball_ui(nums):
     return html
 
 # [3. 상단 내비게이션]
-st.markdown("""
-    <div class="nav-bar">
-        <div style="font-size: 22px; font-weight: bold; letter-spacing: 1px;">💎 LUMEN QUANT MASTER</div>
-        <div style="cursor: pointer; font-weight: bold; border: 1px solid white; padding: 5px 15px; border-radius: 20px;" onclick="window.location.reload()">🏠 HOME</div>
-    </div>
-    <div class="main-container"></div>
-""", unsafe_allow_html=True)
+st.markdown('<div class="nav-bar"><div style="font-size: 22px; font-weight: bold;">💎 LUMEN QUANT MASTER</div></div><div class="main-container"></div>', unsafe_allow_html=True)
 
-# [4. 데이터 영구 기록]
+# [4. 데이터 기록]
 DB_FILE = "lotto_master_db.csv"
-def save_to_db(agent, nums):
+def save_to_db(agent, nums_list):
     now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    df = pd.DataFrame([[now, agent, str(nums)]], columns=['Time', 'Agent', 'Numbers'])
+    data = [[now, agent, str(nums)] for nums in nums_list]
+    df = pd.DataFrame(data, columns=['Time', 'Agent', 'Numbers'])
     if not os.path.isfile(DB_FILE): df.to_csv(DB_FILE, index=False, mode='w', encoding='utf-8-sig')
     else: df.to_csv(DB_FILE, index=False, mode='a', header=False, encoding='utf-8-sig')
 
-# [5. 메인 탭]
-tabs = st.tabs(["🤖 AI 에이전트 룸", "📜 전회차 히스토리", "🔍 상세 조회", "🔮 수동 검증"])
+# [5. 메인 기능]
+tabs = st.tabs(["🤖 AI 에이전트 룸", "📜 전회차 히스토리", "🔍 상세 조회"])
 
-# --- Tab 1: AI 룸 & 확실한 카카오톡 전송 ---
 with tabs[0]:
     if 'current_room' not in st.session_state: st.session_state.current_room = "Main"
     agents = ["A1 (통계분석)", "A2 (패턴매칭)", "A3 (인사이트)", "A4 (퀀트밸런스)", "A5 (시뮬레이션)", "A6 (최종가디언)"]
 
     if st.session_state.current_room == "Main":
-        st.subheader("🤖 전용 AI 에이전트 선택")
+        st.subheader("🤖 연구실 선택")
         cols = st.columns(3)
         for i, name in enumerate(agents):
             with cols[i % 3]:
-                if st.button(f"{name.split(' ')[0]} 입장", key=f"enter_{i}"):
+                if st.button(f"{name.split(' ')[0]} 입장"):
                     st.session_state.current_room = name
                     st.rerun()
     else:
-        st.markdown(f"<div class='agent-room'><h2>🧪 {st.session_state.current_room} 연구실</h2></div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='agent-room'><h3>🧪 {st.session_state.current_room} 연구실</h3></div>", unsafe_allow_html=True)
+        
+        # 조합 개수 선택 (10개 단위 요청 반영)
+        count_option = st.select_slider("추출할 조합 개수를 선택하세요", options=[1, 10, 20, 30, 40, 50], value=10)
+        
         c1, c2 = st.columns(2)
         with c1: 
             if st.button("🚪 로비로 나가기"): 
                 st.session_state.current_room = "Main"
                 st.rerun()
         with c2:
-            if st.button("🔥 독점 번호 추출"):
-                res = sorted(random.sample(range(1, 46), 6))
-                save_to_db(st.session_state.current_room, res)
-                st.session_state.last_res = res
-                st.markdown(get_ball_ui(res), unsafe_allow_html=True)
+            if st.button(f"🔥 {count_option}개 조합 동시 추출"):
+                all_res = [sorted(random.sample(range(1, 46), 6)) for _ in range(count_option)]
+                save_to_db(st.session_state.current_room, all_res)
                 
-                # [수정된 카카오톡 공유 방식]
-                share_text = f"🛡️ 루멘퀀트 배정번호: {res}"
-                # 별도의 앱키 없이 모바일 시스템 공유 기능을 활용하는 가장 안정적인 링크
-                whatsapp_url = f"https://api.whatsapp.com/send?text={urllib.parse.quote(share_text)}" # 대안
-                sms_url = f"sms:?body={urllib.parse.quote(share_text)}" # 문자 대안
+                # 결과 출력
+                msg_content = f"[{st.session_state.current_room} 추천번호]\n"
+                for idx, res in enumerate(all_res):
+                    st.markdown(f"**조합 {idx+1}**")
+                    st.markdown(get_ball_html(res), unsafe_allow_html=True)
+                    msg_content += f"{idx+1}세트: {', '.join(map(str, res))}\n"
                 
-                # 카톡으로 바로 보내기 버튼 (URL 복사 방식 병행)
+                # [카카오톡 전송 최종 해결책]
+                encoded_msg = urllib.parse.quote(msg_content)
+                # 모바일 인텐트 방식: 설치된 카카오톡 앱을 직접 호출 (API 키 불필요)
+                kakao_intent = f"kakaolink://send?text={encoded_msg}"
+                
                 st.markdown(f"""
-                    <a href="https://t.me/share/url?url=LumenQuant&text={urllib.parse.quote(share_text)}" target="_blank" class="kakao-send-btn" style="background-color: #0088cc; color: white !important;">💬 텔레그램으로 번호 보내기</a>
-                    <a href="https://www.facebook.com/sharer/sharer.php?u=LumenQuant&quote={urllib.parse.quote(share_text)}" target="_blank" class="kakao-send-btn" style="background-color: #4267B2; color: white !important;">💬 페이스북으로 번호 보내기</a>
-                    <div style="background-color: #FEE500; padding: 15px; border-radius: 25px; text-align: center; margin-top: 10px; color: #191919; font-weight: bold; cursor: pointer;" onclick="navigator.clipboard.writeText('{share_text}'); alert('번호가 복사되었습니다! 카카오톡에 붙여넣기 하세요.');">
-                        💬 번호 복사해서 카톡에 붙여넣기
+                    <div style="margin-top:20px; padding:15px; background:#fffbe6; border:1px solid #ffe58f; border-radius:15px;">
+                        <p style="margin-bottom:10px; font-weight:bold;">📲 카카오톡 전송 방법 (선택)</p>
+                        <a href="kakaotalk://send?text={encoded_msg}" class="kakao-link-btn">1. 카카오톡 앱으로 바로 보내기</a>
+                        <div class="kakao-link-btn" style="background:#eeeeee;" onclick="navigator.clipboard.writeText('{msg_content}'); alert('번호가 복사되었습니다! 카톡창에 붙여넣으세요.');">2. 전체 번호 복사하기</div>
                     </div>
                 """, unsafe_allow_html=True)
                 st.balloons()
 
-# --- Tab 2: 전회차 히스토리 ---
 with tabs[1]:
     latest_info = fetch_lotto_data()
     st.header(f"📜 전회차 히스토리 (1회 ~ {latest_info['최신']}회)")
-    history_list = [{"회차": i, "상태": "연산 완료"} for i in range(latest_info['최신'], 0, -1)]
-    st.dataframe(pd.DataFrame(history_list), use_container_width=True, height=500)
+    history_list = [{"회차": i, "분석상태": "완료"} for i in range(latest_info['최신'], 0, -1)]
+    st.dataframe(pd.DataFrame(history_list), use_container_width=True, height=400)
 
-# --- Tab 3: 상세 조회 ---
 with tabs[2]:
     search_no = st.number_input("조회 회차", min_value=1, max_value=latest_info['최신'], value=latest_info['최신'])
-    if st.button("조회 실행"):
+    if st.button("조회"):
         old = fetch_lotto_data(search_no)
-        st.markdown(f"<div class='premium-card' style='text-align:center;'>{get_ball_ui(old['번호'])}</div>", unsafe_allow_html=True)
-
-# --- Tab 4: 수동 검증 ---
-with tabs[3]:
-    latest_no = latest_info['최신']
-    target_round = st.selectbox("확인 회차", [latest_no, latest_no - 1])
-    user_nums = st.multiselect("보유 번호", list(range(1, 46)), max_selections=6)
-    if len(user_nums) == 6 and st.button("확인"):
-        win_data = fetch_lotto_data(target_round)
-        match = len(set(win_data['번호']) & set(user_nums))
-        st.markdown(f"<div class='premium-card' style='text-align:center;'><h3>일치: {match}개</h3></div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='premium-card' style='text-align:center;'><h4>제 {search_no}회</h4>{get_ball_html(old['번호'])}</div>", unsafe_allow_html=True)
